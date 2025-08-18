@@ -1,5 +1,5 @@
 # A simple CMakeLists file that enables the Optimization library to be conveniently imported by other CMake projects using
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.5)
 
 # PROJECT CONFIGURATION
 project(Optimization LANGUAGES CXX VERSION 1.0.0)

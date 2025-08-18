@@ -241,6 +241,9 @@ SESyncResult SESync(SESyncProblem &problem, const SESyncOpts &options,
   for (size_t r = options.r0; r <= options.rmax; r++) {
     // The elapsed time from the start of the Riemannian Staircase algorithm
     // until the start of this iteration of RTR
+
+    SESyncResults.rank_iters.push_back(r);
+
     double RTR_iteration_start_time =
         Stopwatch::tock(riemannian_staircase_start_time);
 
@@ -272,8 +275,11 @@ SESyncResult SESync(SESyncProblem &problem, const SESyncOpts &options,
     // Extract the results
     SESyncResults.Yopt = TNTResults.x;
     SESyncResults.SDPval = TNTResults.f;
+    SESyncResults.SDPvalVector.push_back(TNTResults.f);
+
     SESyncResults.gradnorm =
         problem.Riemannian_gradient(SESyncResults.Yopt).norm();
+    SESyncResults.gradnormVector.push_back(SESyncResults.gradnorm);
 
     // Record sequence of function values
     SESyncResults.function_values.push_back(TNTResults.objective_values);
@@ -309,12 +315,18 @@ SESyncResult SESync(SESyncProblem &problem, const SESyncOpts &options,
     // Compute the minimum eigenvalue lambda and corresponding eigenvector
     // of Q - Lambda
     size_t num_min_eig_iterations;
+    auto verification_start_time = Stopwatch::tick();
+
     auto eig_start_time = Stopwatch::tick();
+
     bool eigenvalue_convergence = problem.compute_S_minus_Lambda_min_eig(
         SESyncResults.Yopt, SESyncResults.lambda_min, SESyncResults.v_min,
         num_min_eig_iterations, options.max_eig_iterations,
         options.min_eig_num_tol, options.num_Lanczos_vectors);
     double eig_elapsed_time = Stopwatch::tock(eig_start_time);
+    double verification_elapsed_time = Stopwatch::tock(verification_start_time);
+
+    SESyncResults.verification_times.push_back(verification_elapsed_time);
 
     // Check eigenvalue convergence
     if (!eigenvalue_convergence) {

@@ -3,6 +3,49 @@
 
 #include <fstream>
 
+void exportCertificateResultsSingleCSV(
+        const SESync::SESyncResult & R,
+        const std::string& filename)
+{
+  std::ofstream out(filename);
+
+  // 1) Export SDPval vector entries
+  for (size_t k = 0; k < R.SDPvalVector.size(); ++k) {
+    out << "SDPval," << k << ",," << R.SDPvalVector[k] << "\n";
+  }
+
+  // 2) Export gradnorm vector entries
+  for (size_t k = 0; k < R.gradnormVector.size(); ++k) {
+    out << "gradnorm," << k << ",," << R.gradnormVector[k] << "\n";
+  }
+
+  // 3) Export scalar fields
+  out << "startingRank : "         << R.rank_iters.front()         << "\n";
+  out << "endingRank : "           << R.rank_iters.back()           << "\n";
+
+  // 4) Export initialization_time vector entries
+  out << "initialization_time : " << R.initialization_time << "\n";
+
+  // 5) Export elapsed_optimization_times vector entries
+  double FinalOptTime = 0;
+  for (size_t k = 0; k < R.elapsed_optimization_times.size(); ++k) {
+    out << "elapsed_optimization_times," << k << ","
+        << R.elapsed_optimization_times[k].back() << "\n";
+    FinalOptTime += R.elapsed_optimization_times[k].back();
+  }
+
+  // 6) Export verification_times vector entries
+  for (size_t k = 0; k < R.verification_times.size(); ++k) {
+    out << "verification_times," << k << ",,"
+        << R.verification_times[k] << "\n";
+  }
+
+  out << "Final optimization time : " << FinalOptTime << "\n";
+  out << "Final total computation time : " << R.total_computation_time << "\n";
+
+  std::cout << "All fields exported to \"" << filename << "\"\n";
+}
+
 int main(int argc, char *argv[]) {
   bool use_CPL = true;
   bool write = false;
@@ -25,9 +68,10 @@ int main(int argc, char *argv[]) {
       exit(1);
     }
   }
-
-  if (argc >= 4) {
-    write = true;
+    std::string outputPath;
+    if (argc >= 3) {
+//    write = true;
+      outputPath = argv[3];
   }
 
   size_t num_poses;
@@ -37,6 +81,10 @@ int main(int argc, char *argv[]) {
     CPL_SLAM::measurements_t measurements = CPL_SLAM::read_g2o_file(argv[1]);
 
     CPL_SLAM::CPL_SLAMOpts opts;
+
+
+
+    opts.initialization = CPL_SLAM::Initialization::Random;
     opts.r0 = 2;
     opts.verbose = true;  // Print output to stdout
     opts.reg_Cholesky_precon_max_condition_number = 2e6;
@@ -101,14 +149,17 @@ int main(int argc, char *argv[]) {
     SESync::measurements_t measurements = SESync::read_g2o_file(argv[1]);
 
     SESync::SESyncOpts opts;
+    opts.r0 = 2;
     opts.verbose = true;  // Print output to stdout
     opts.reg_Cholesky_precon_max_condition_number = 2e6;
-
+    opts.initialization = SESync::Initialization::Random;
+//    opts.formulation = SESync::Formulation::Explicit;
 #if defined(_OPENMP)
     opts.num_threads = 4;
 #endif
 
     SESync::SESyncResult results = SESync::SESync(measurements, opts);
+    exportCertificateResultsSingleCSV(results, outputPath);
 
     if (write) {
       std::string filename(argv[3]);

@@ -163,9 +163,11 @@ struct CPL_SLAMResult {
 
   /** The value of the objective F(Y^T Y) = F(Z) attained by the Yopt */
   Scalar SDPval;
+  std::vector<Scalar> SDPvalVector;
 
   /** The norm of the Riemannian gradient at Yopt */
   Scalar gradnorm;
+  std::vector<Scalar> gradnormVector;
 
   /** The Lagrange multiplier matrix Lambda corresponding to Yopt, computed
    * according to eq. (119) in the CPL-SLAM tech report.  If Z = Y^T Y is an
@@ -208,6 +210,8 @@ struct CPL_SLAMResult {
    * Riemannian Staircase */
   double initialization_time;
 
+  std::vector<double> verification_times;
+
   /** A vector containing the sequence of function values obtained during the
    * optimization at each level of the Riemannian Staircase */
   std::vector<std::vector<Scalar>> function_values;
@@ -249,6 +253,10 @@ struct CPL_SLAMResult {
 
   /** The termination status of the CPL-SLAM algorithm */
   CPL_SLAMStatus status;
+
+  // Riemannian staricase level used, i.e, all the rank we used
+  std::vector<size_t> rank_iters;
+
 };
 
 /** Given an CPL_SLAMProblem instance, this function performs synchronization */
