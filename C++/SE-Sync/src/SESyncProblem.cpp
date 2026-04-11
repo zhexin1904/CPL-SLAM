@@ -219,12 +219,12 @@ Matrix SESyncProblem::Riemannian_Hessian_vector_product(
     // Euclidean Hessian-vector product
     Matrix H_dotY = 2 * dotY * M_;
 
-    H_dotY.block(0, size_, r_, d_ * n_[0]) = SP_.Proj(
-        Y.block(0, size_, r_, d_ * n_[0]),
-        H_dotY.block(0, size_, r_, d_ * n_[0]) -
-            SP_.SymBlockDiagProduct(dotY.block(0, size_, r_, d_ * n_[0]),
-                                    Y.block(0, size_, r_, d_ * n_[0]),
-                                    nablaF_Y.block(0, size_, r_, d_ * n_[0])));
+    H_dotY.block(0, size_, dotY.rows(), d_ * n_[0]) = SP_.Proj(
+        Y.block(0, size_, dotY.rows(), d_ * n_[0]),
+        H_dotY.block(0, size_, dotY.rows(), d_ * n_[0]) -
+            SP_.SymBlockDiagProduct(dotY.block(0, size_, dotY.rows(), d_ * n_[0]),
+                                    Y.block(0, size_, dotY.rows(), d_ * n_[0]),
+                                    nablaF_Y.block(0, size_, dotY.rows(), d_ * n_[0])));
     return H_dotY;
   }
 }
@@ -243,11 +243,12 @@ Matrix SESyncProblem::precondition(const Matrix &Y, const Matrix &dotY) const {
     return tangent_space_projection(
         Y, iChol_precon_->solve(dotY.transpose()).transpose());
   else {
-    if (n_[1] == 0)
+    if (form_ == Formulation::Explicit || n_[1] == 0)
       return tangent_space_projection(
           Y, reg_Chol_precon_.solve(dotY.transpose()).transpose());
     else {
-      Matrix Z(r_, (d_ + 1) * n_[0] + n_[1]);
+      // Simplified mode with landmarks
+      Matrix Z(dotY.rows(), (d_ + 1) * n_[0] + n_[1]);
       Z.leftCols(n_[0] + n_[1]).setZero();
       Z.rightCols(d_ * n_[0]) = dotY;
 
@@ -268,13 +269,13 @@ Matrix SESyncProblem::tangent_space_projection(const Matrix &Y,
     Matrix P(dotY.rows(), dotY.cols());
 
     // Projection of translational states is the identity
-    P.block(0, 0, r_, size_) = dotY.block(0, 0, r_, size_);
+    P.block(0, 0, dotY.rows(), size_) = dotY.block(0, 0, dotY.rows(), size_);
 
     // Projection of generalized rotational states comes from the product of
     // Stiefel manifolds
-    P.block(0, size_, r_, d_ * n_[0]) =
-        SP_.Proj(Y.block(0, size_, r_, d_ * n_[0]),
-                 dotY.block(0, size_, r_, d_ * n_[0]));
+    P.block(0, size_, dotY.rows(), d_ * n_[0]) =
+        SP_.Proj(Y.block(0, size_, dotY.rows(), d_ * n_[0]),
+                 dotY.block(0, size_, dotY.rows(), d_ * n_[0]));
 
     return P;
   }
@@ -286,11 +287,11 @@ Matrix SESyncProblem::retract(const Matrix &Y, const Matrix &dotY) const {
   else  // form == Explicit
   {
     Matrix Yplus = Y;
-    Yplus.block(0, 0, r_, size_) += dotY.block(0, 0, r_, size_);
+    Yplus.block(0, 0, dotY.rows(), size_) += dotY.block(0, 0, dotY.rows(), size_);
 
-    Yplus.block(0, size_, r_, d_ * n_[0]) =
-        SP_.retract(Y.block(0, size_, r_, d_ * n_[0]),
-                    dotY.block(0, size_, r_, d_ * n_[0]));
+    Yplus.block(0, size_, dotY.rows(), d_ * n_[0]) =
+        SP_.retract(Y.block(0, size_, dotY.rows(), d_ * n_[0]),
+                    dotY.block(0, size_, dotY.rows(), d_ * n_[0]));
 
     return Yplus;
   }
@@ -549,8 +550,10 @@ SESyncProblem::SMinusLambdaProdFunctor::SMinusLambdaProdFunctor(
     cols_ = problem_->dimension() * problem_->num_poses();
   } else  // mode == Explicit
   {
-    rows_ = (problem_->dimension() + 1) * problem_->num_poses();
-    cols_ = (problem_->dimension() + 1) * problem_->num_poses();
+    rows_ = (problem_->dimension() + 1) * problem_->num_poses() +
+            problem_->num_landmarks();
+    cols_ = (problem_->dimension() + 1) * problem_->num_poses() +
+            problem_->num_landmarks();
   }
 
   // Compute and cache this on construction
@@ -566,9 +569,10 @@ void SESyncProblem::SMinusLambdaProdFunctor::perform_op(Scalar *x,
 
   // Offset corresponding to the first index in X and Y associated with
   // rotational blocks
-  size_t offset = (problem_->formulation() == Formulation::Simplified
-                       ? 0
-                       : problem_->num_poses());
+  size_t offset =
+      (problem_->formulation() == Formulation::Simplified
+           ? 0
+           : problem_->num_poses() + problem_->num_landmarks());
 
 #pragma omp parallel for
   for (size_t i = 0; i < problem_->num_poses(); ++i)

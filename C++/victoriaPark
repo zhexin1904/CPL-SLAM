@@ -1,0 +1,17 @@
+SDPval,0,,7.07434e+06
+SDPval,1,,8307.24
+SDPval,2,,466.03
+gradnorm,0,,9.47982
+gradnorm,1,,0.028115
+gradnorm,2,,0.00150017
+startingRank : 2
+endingRank : 4
+initialization_time : 0.00129502
+elapsed_optimization_times,0,33.8874
+elapsed_optimization_times,1,29.6723
+elapsed_optimization_times,2,18.2729
+verification_times,0,,0.101243
+verification_times,1,,0.126728
+verification_times,2,,0.595055
+Final optimization time : 81.8325
+Final total computation time : 83.6262

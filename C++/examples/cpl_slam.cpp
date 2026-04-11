@@ -152,8 +152,9 @@ int main(int argc, char *argv[]) {
     opts.r0 = 2;
     opts.verbose = true;  // Print output to stdout
     opts.reg_Cholesky_precon_max_condition_number = 2e6;
+    opts.max_iterations = 200;
     opts.initialization = SESync::Initialization::Random;
-//    opts.formulation = SESync::Formulation::Explicit;
+    opts.formulation = SESync::Formulation::Explicit;
 #if defined(_OPENMP)
     opts.num_threads = 4;
 #endif
