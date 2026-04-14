@@ -4,27 +4,28 @@
 #include <fstream>
 
 void exportCertificateResultsSingleCSV(
-        const SESync::SESyncResult & R,
-        const std::string& filename)
+    const SESync::SESyncResult & R,
+    const std::string& filename)
 {
   std::ofstream out(filename);
+  out << "field,index,value" << std::endl;
 
   // 1) Export SDPval vector entries
   for (size_t k = 0; k < R.SDPvalVector.size(); ++k) {
-    out << "SDPval," << k << ",," << R.SDPvalVector[k] << "\n";
+    out << "SDPval," << k << "," << R.SDPvalVector[k] << "\n";
   }
 
   // 2) Export gradnorm vector entries
   for (size_t k = 0; k < R.gradnormVector.size(); ++k) {
-    out << "gradnorm," << k << ",," << R.gradnormVector[k] << "\n";
+    out << "gradnorm," << k << "," << R.gradnormVector[k] << "\n";
   }
 
   // 3) Export scalar fields
-  out << "startingRank : "         << R.rank_iters.front()         << "\n";
-  out << "endingRank : "           << R.rank_iters.back()           << "\n";
+  out << "startingRank,0," << R.rank_iters.front() << "\n";
+  out << "endingRank,0," << R.rank_iters.back() << "\n";
 
   // 4) Export initialization_time vector entries
-  out << "initialization_time : " << R.initialization_time << "\n";
+  out << "initialization_time,0," << R.initialization_time << "\n";
 
   // 5) Export elapsed_optimization_times vector entries
   double FinalOptTime = 0;
@@ -36,22 +37,51 @@ void exportCertificateResultsSingleCSV(
 
   // 6) Export verification_times vector entries
   for (size_t k = 0; k < R.verification_times.size(); ++k) {
-    out << "verification_times," << k << ",,"
+    out << "verification_times," << k << ","
         << R.verification_times[k] << "\n";
   }
 
-  out << "Final optimization time : " << FinalOptTime << "\n";
-  out << "Final total computation time : " << R.total_computation_time << "\n";
+  out << "FinalOptimizationTime,0," << FinalOptTime << "\n";
+  out << "FinalTotalTime,0," << R.total_computation_time << "\n";
 
   std::cout << "All fields exported to \"" << filename << "\"\n";
+}
+
+void exportTrajectoryG2O(const SESync::SESyncResult &results,
+                         const SESync::measurements_t &measurements,
+                         const std::string &filename) {
+  std::ofstream g2o_file(filename);
+  size_t d = measurements.dimension;
+  size_t n = measurements.num_poses;
+
+  if (d == 2) {
+    for (size_t i = 0; i < n; i++) {
+      Eigen::Vector2d t = results.xhat.block(0, i * 3, 2, 1);
+      Eigen::Matrix2d R = results.xhat.block(0, i * 3 + 1, 2, 2);
+      double theta = atan2(R(1, 0), R(0, 0));
+      g2o_file << "VERTEX_SE2 " << i << " " << t(0) << " " << t(1) << " "
+               << theta << std::endl;
+    }
+  } else if (d == 3) {
+    for (size_t i = 0; i < n; i++) {
+      Eigen::Vector3d t = results.xhat.block(0, i * 4, 3, 1);
+      Eigen::Matrix3d R = results.xhat.block(0, i * 4 + 1, 3, 3);
+      Eigen::Quaterniond q(R);
+      g2o_file << "VERTEX_SE3:QUAT " << i << " " << t(0) << " " << t(1) << " "
+               << t(2) << " " << q.x() << " " << q.y() << " " << q.z() << " "
+               << q.w() << std::endl;
+    }
+  }
+
+  g2o_file.close();
 }
 
 int main(int argc, char *argv[]) {
   bool use_CPL = true;
   bool write = false;
 
-  if (argc < 2 || argc > 4) {
-    std::cout << "Usage: " << argv[0] << " [input .g2o file]" << std::endl;
+  if (argc < 2 || argc > 5) {
+    std::cout << "Usage: " << argv[0] << " input_file [alg: CPL|SE] [output_csv] [output_g2o]" << std::endl;
     exit(1);
   }
 
@@ -68,10 +98,15 @@ int main(int argc, char *argv[]) {
       exit(1);
     }
   }
-    std::string outputPath;
-    if (argc >= 3) {
-//    write = true;
-      outputPath = argv[3];
+
+  std::string outputPath;
+  std::string g2oOutputPath;
+  if (argc >= 4) {
+    write = true;
+    outputPath = argv[3];
+  }
+  if (argc >= 5) {
+    g2oOutputPath = argv[4];
   }
 
   size_t num_poses;
@@ -160,14 +195,13 @@ int main(int argc, char *argv[]) {
 #endif
 
     SESync::SESyncResult results = SESync::SESync(measurements, opts);
-    exportCertificateResultsSingleCSV(results, outputPath);
 
     if (write) {
-      std::string filename(argv[3]);
-      std::cout << "Saving final poses to file: " << filename << std::endl;
-      std::ofstream poses_file(filename);
-      poses_file << results.xhat;
-      poses_file.close();
+      std::string filename(outputPath);
+      std::string g2o_filename = g2oOutputPath.empty() ? filename + ".g2o" : g2oOutputPath;
+      exportCertificateResultsSingleCSV(results, filename);
+      std::cout << "Saving final trajectory to: " << g2o_filename << std::endl;
+      exportTrajectoryG2O(results, measurements, g2o_filename);
     }
   }
 
